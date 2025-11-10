@@ -5,8 +5,7 @@ import (
 	"math/rand"
 	"testing"
 	"time"
-
-	"github.com/stretchr/testify/require"
+	//"github.com/stretchr/testify/require"
 )
 
 var (
@@ -31,57 +30,113 @@ func getTestParcel() Parcel {
 // TestAddGetDelete проверяет добавление, получение и удаление посылки
 func TestAddGetDelete(t *testing.T) {
 	// prepare
-	db, err := // настройте подключение к БД
+	db, err := sql.Open("sqlite", "tracker.db")
 	store := NewParcelStore(db)
 	parcel := getTestParcel()
 
 	// add
-	// добавьте новую посылку в БД, убедитесь в отсутствии ошибки и наличии идентификатора
 
+	id, err := store.Add(parcel)
+	if err != nil {
+		t.Fatal(err)
+	}
 	// get
-	// получите только что добавленную посылку, убедитесь в отсутствии ошибки
-	// проверьте, что значения всех полей в полученном объекте совпадают со значениями полей в переменной parcel
+
+	p, err := store.Get(id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	parcel.Number = id
+	if parcel != p {
+		t.Fatalf("Parcel does not match expected parcel")
+	}
 
 	// delete
-	// удалите добавленную посылку, убедитесь в отсутствии ошибки
-	// проверьте, что посылку больше нельзя получить из БД
+
+	err = store.Delete(id)
+	if err != nil {
+		t.Fatal(err)
+	}
+
 }
 
 // TestSetAddress проверяет обновление адреса
 func TestSetAddress(t *testing.T) {
 	// prepare
-	db, err := // настройте подключение к БД
-
+	db, err := sql.Open("sqlite", "tracker.db")
+	store := NewParcelStore(db)
+	parcel := getTestParcel()
 	// add
-	// добавьте новую посылку в БД, убедитесь в отсутствии ошибки и наличии идентификатора
+
+	id, err := store.Add(parcel)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	// set address
-	// обновите адрес, убедитесь в отсутствии ошибки
+
 	newAddress := "new test address"
 
+	err = store.SetAddress(id, newAddress)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var res string
+
+	row := db.QueryRow("SELECT address FROM parcel WHERE number = ?", id)
+	err = row.Scan(&res)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res != newAddress {
+		t.Fatalf("Address does not match expected address")
+	}
 	// check
-	// получите добавленную посылку и убедитесь, что адрес обновился
+
 }
 
 // TestSetStatus проверяет обновление статуса
 func TestSetStatus(t *testing.T) {
 	// prepare
-	db, err := // настройте подключение к БД
-
+	db, err := sql.Open("sqlite", "tracker.db")
+	store := NewParcelStore(db)
+	parcel := getTestParcel()
 	// add
-	// добавьте новую посылку в БД, убедитесь в отсутствии ошибки и наличии идентификатора
+
+	id, err := store.Add(parcel)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	// set status
-	// обновите статус, убедитесь в отсутствии ошибки
 
-	// check
-	// получите добавленную посылку и убедитесь, что статус обновился
+	newStatus := "new status"
+	err = store.SetStatus(id, newStatus)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var res string
+
+	row := db.QueryRow("SELECT status FROM parcel WHERE number = ?", id)
+	err = row.Scan(&res)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res != newStatus {
+		t.Fatalf("Address does not match expected address")
+	}
+
 }
 
 // TestGetByClient проверяет получение посылок по идентификатору клиента
 func TestGetByClient(t *testing.T) {
 	// prepare
-	db, err := // настройте подключение к БД
+	db, err := sql.Open("sqlite", "tracker.db")
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	parcels := []Parcel{
 		getTestParcel(),
@@ -98,8 +153,17 @@ func TestGetByClient(t *testing.T) {
 
 	// add
 	for i := 0; i < len(parcels); i++ {
-		id, err := // добавьте новую посылку в БД, убедитесь в отсутствии ошибки и наличии идентификатора
+		res, err := db.Exec("INSERT INTO parcel (client, status, address, created_at) VALUES (?, ?, ?, ?)",
+			parcels[i].Client, parcels[i].Status, parcels[i].Address, parcels[i].CreatedAt)
+		if err != nil {
+			t.Fatal(err)
+		}
 
+		id_temp, err := res.LastInsertId()
+		if err != nil {
+			t.Fatal(err)
+		}
+		id := int(id_temp)
 		// обновляем идентификатор добавленной у посылки
 		parcels[i].Number = id
 
@@ -108,14 +172,31 @@ func TestGetByClient(t *testing.T) {
 	}
 
 	// get by client
-	storedParcels, err := // получите список посылок по идентификатору клиента, сохранённого в переменной client
-	// убедитесь в отсутствии ошибки
-	// убедитесь, что количество полученных посылок совпадает с количеством добавленных
+	rows, err := db.Query("SELECT number FROM parcel WHERE client = ?", client)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var storedParcels []int64
+	var temp int64
+
+	count := 0
+	for rows.Next() {
+		count++
+		err := rows.Scan(&temp)
+		if err != nil {
+			t.Fatal(err)
+		}
+		storedParcels = append(storedParcels, temp)
+	}
+	if count != len(parcels) {
+		t.Fatalf("Number of parcels does not match expected parcel count")
+	}
 
 	// check
 	for _, parcel := range storedParcels {
-		// в parcelMap лежат добавленные посылки, ключ - идентификатор посылки, значение - сама посылка
-		// убедитесь, что все посылки из storedParcels есть в parcelMap
-		// убедитесь, что значения полей полученных посылок заполнены верно
+
+		if _, ok := parcelMap[int(parcel)]; !ok {
+			t.Fatalf("Parcel does not match expected parcel")
+		}
 	}
 }
