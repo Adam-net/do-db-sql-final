@@ -2,7 +2,6 @@ package main
 
 import (
 	"database/sql"
-	"fmt"
 )
 
 type ParcelStore struct {
@@ -14,7 +13,6 @@ func NewParcelStore(db *sql.DB) ParcelStore {
 }
 
 func (s ParcelStore) Add(p Parcel) (int, error) {
-
 	res, err := s.db.Exec("INSERT INTO parcel (client, status, address, created_at) VALUES (?, ?, ?, ?)", p.Client, p.Status, p.Address, p.CreatedAt)
 	if err != nil {
 		return 0, err
@@ -25,7 +23,6 @@ func (s ParcelStore) Add(p Parcel) (int, error) {
 }
 
 func (s ParcelStore) Get(number int) (Parcel, error) {
-
 	row := s.db.QueryRow("SELECT number, client, status, address, created_at FROM parcel WHERE number = ?", number)
 
 	p := Parcel{}
@@ -39,10 +36,10 @@ func (s ParcelStore) Get(number int) (Parcel, error) {
 }
 
 func (s ParcelStore) GetByClient(client int) ([]Parcel, error) {
-
 	var res []Parcel
 
 	rows, err := s.db.Query("SELECT number, client, status, address, created_at FROM parcel WHERE client = ?", client)
+	defer rows.Close()
 	if err != nil {
 		return res, err
 	}
@@ -60,7 +57,6 @@ func (s ParcelStore) GetByClient(client int) ([]Parcel, error) {
 }
 
 func (s ParcelStore) SetStatus(number int, status string) error {
-
 	_, err := s.db.Exec("UPDATE parcel SET status = ? WHERE number = ?", status, number)
 	if err != nil {
 		return err
@@ -69,40 +65,18 @@ func (s ParcelStore) SetStatus(number int, status string) error {
 }
 
 func (s ParcelStore) SetAddress(number int, address string) error {
-
-	row := s.db.QueryRow("SELECT status FROM parcel WHERE number = ?", number)
-	p := Parcel{}
-	err := row.Scan(&p.Status)
+	_, err := s.db.Exec("UPDATE parcel Set address = ? WHERE number = ? and status = ?", address, number, ParcelStatusRegistered)
 	if err != nil {
 		return err
 	}
-
-	if p.Status == ParcelStatusRegistered {
-		_, err := s.db.Exec("UPDATE parcel SET address = ? WHERE number = ?", address, number)
-		if err != nil {
-			return err
-		}
-	}
-
 	return nil
 }
 
 func (s ParcelStore) Delete(number int) error {
 
-	row := s.db.QueryRow("SELECT status FROM parcel WHERE number = ?", number)
-	p := Parcel{}
-	err := row.Scan(&p.Status)
+	_, err := s.db.Exec("DELETE FROM parcel WHERE number = ? and status = ?", number, ParcelStatusRegistered)
 	if err != nil {
 		return err
 	}
-	if p.Status == ParcelStatusRegistered {
-		_, err := s.db.Exec("DELETE FROM parcel WHERE number = ?", number)
-		if err != nil {
-			return err
-		}
-	} else {
-		return fmt.Errorf("Not right status")
-	}
-
 	return nil
 }
